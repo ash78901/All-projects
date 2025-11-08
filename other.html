@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Decision maker</title>
+<link rel="stylesheet" href="style2.css">
+  
+</head>
+<body>
+  <div class="app" id="app">
+    <header>
+      <div>
+        <h1>Interactive Draggable Bars</h1>
+        <p class="sub">Drag the handle on each bar or use the slider below it to change its value (0–100).</p>
+      </div>
+      <div>
+        <button id="addBarBtn">+ Add Bar</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+    </header>
+
+    <section class="graph-area" id="graph"></section>
+
+    <div class="controls" id="controls"></div>
+
+    <footer>Live values update as you drag. Works on touch and mouse.</footer>
+  </div>
+
+  <script>
+    function create(tag, attrs = {}, ...children) {
+      const el = document.createElement(tag);
+      for (const k in attrs) {
+        if (k === 'class') el.className = attrs[k];
+        else if (k === 'style') Object.assign(el.style, attrs[k]);
+        else if (k.startsWith('data-')) el.setAttribute(k, attrs[k]);
+        else el[k] = attrs[k];
+      }
+      children.forEach(c => {
+        if (typeof c === 'string') el.appendChild(document.createTextNode(c));
+        else if (c) el.appendChild(c);
+      });
+      return el;
+    }
+    
+    const graph = document.getElementById('graph');
+    const controls = document.getElementById('controls');
+    const addBarBtn = document.getElementById('addBarBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    
+    let bars = [];
+    
+    function addBar(name = null, initial = Math.floor(Math.random()*61)+20) {
+      const id = Math.random().toString(36).slice(2,9);
+      const bar = create('div',{class:'bar', id: 'bar-' + id});
+      const label = create('div',{class:'label'}, name || ('Bar ' + (bars.length+1)));
+      const viewport = create('div',{class:'bar-viewport'});
+      const fill = create('div',{class:'bar-fill'});
+      const handle = create('div',{class:'drag-handle'});
+      const bubble = create('div',{class:'value-bubble'}, String(initial));
+    
+      const controlCard = create('div',{class:'control-card'});
+      const sliderLabel = create('div',{}, label.cloneNode(true).textContent);
+      const slider = create('input',{type:'range', min:0, max:100, value:initial});
+    
+      fill.appendChild(handle);
+      viewport.appendChild(bubble);
+      viewport.appendChild(fill);
+      bar.appendChild(label);
+      bar.appendChild(viewport);
+      graph.appendChild(bar);
+    
+      const controlWrapper = create('div',{class:'control-card'});
+      controlWrapper.appendChild(sliderLabel);
+      controlWrapper.appendChild(slider);
+      const removeBtn = create('button',{}, 'Remove');
+      controlWrapper.appendChild(removeBtn);
+      controls.appendChild(controlWrapper);
+    
+      const entry = { id, el: bar, fill, handle, viewport, bubble, slider, controlWrapper, label, value: initial };
+      bars.push(entry);
+      setBarValue(entry, initial, true);
+    
+      handle.addEventListener('pointerdown', startDrag(entry));
+      slider.addEventListener('input', () => setBarValue(entry, Number(slider.value)));
+      removeBtn.addEventListener('click', () => {
+        graph.removeChild(bar);
+        controls.removeChild(controlWrapper);
+        bars = bars.filter(b => b !== entry);
+      });
+    }
+    
+    function startDrag(entry) {
+      return function (ev) {
+        ev.preventDefault();
+        entry.handle.setPointerCapture(ev.pointerId);
+        const onMove = (e) => {
+          const rect = entry.viewport.getBoundingClientRect();
+          let pct = ((rect.bottom - e.clientY) / rect.height) * 100;
+          pct = Math.max(0, Math.min(100, pct));
+          setBarValue(entry, Math.round(pct));
+        };
+        const onUp = () => {
+          try { entry.handle.releasePointerCapture(ev.pointerId); } catch {}
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      };
+    }
+    
+    function setBarValue(entry, val, skipRange = false) {
+      const oldVal = entry.value;
+      entry.value = Math.max(0, Math.min(100, val));
+      entry.fill.style.height = entry.value + '%';
+      entry.bubble.textContent = entry.value;
+      entry.bubble.style.top = (-36 - (entry.value/100)*6) + 'px';
+      if (!skipRange) entry.slider.value = entry.value;
+    
+      // BALANCING MAGIC: adjust the next bar in the list inversely
+      const idx = bars.indexOf(entry);
+      if (bars.length > 1) {
+        const target = bars[(idx + 1) % bars.length];
+        const diff = entry.value - oldVal;
+        let newVal = target.value - diff;
+        newVal = Math.max(0, Math.min(100, newVal));
+        target.value = newVal;
+        target.fill.style.height = target.value + '%';
+        target.bubble.textContent = target.value;
+        target.slider.value = target.value;
+      }
+    }
+    
+    for (let i=0;i<4;i++) addBar(null, 25*i);
+    addBarBtn.addEventListener('click', () => addBar(null, 30));
+    resetBtn.addEventListener('click', () => {
+      graph.innerHTML = '';
+      controls.innerHTML = '';
+      bars = [];
+      for (let i=0;i<4;i++) addBar(null, 25*i);
+    });
+    window.addEventListener('resize', () => bars.forEach(b => setBarValue(b, b.value, true)));
+    </script>
+</body>    
+</html>
